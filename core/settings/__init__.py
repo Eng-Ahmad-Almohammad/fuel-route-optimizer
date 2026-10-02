@@ -16,6 +16,10 @@ from split_settings.tools import include
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# Data files used to build the station and place tables, see `data/README.md`.
+# Custom settings live here, not in the `include()`d files, so the django-stubs mypy plugin can see them.
+DATA_DIR = BASE_DIR / "data"
+
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 env = environ.Env(DJANGO_ENV=(str, "development"))
 

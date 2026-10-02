@@ -62,7 +62,16 @@ Apply the database migrations to set up the initial schema for the database:
 python manage.py migrate
 ```
 
-### 6. Run the Server
+### 6. Load the Fuel Stations
+
+Load the US places and the truck stop fuel prices from `data/` into the database (takes a couple of seconds, see
+`data/README.md`):
+
+```bash
+python manage.py load_fuel_data
+```
+
+### 7. Run the Server
 
 Start the development server to test the application locally:
 
@@ -197,6 +206,7 @@ https://example.com/tickets/123
 | Django Environ                   | Python package that allows you to use Twelve-factor methodology to configure your Django application with environment variables.                                                                                                                                                                                                                                                                                            | pip install django-environ                |
 | Django Split Settings            | Organize Django settings into multiple files and directories. Easily override and modify settings. Use wildcards in settings file paths and mark settings files as optional.                                                                                                                                                                                                                                                | pip install django-split-settings         |
 | Gunicorn                         | Gunicorn `Green Unicorn` is a Python WSGI HTTP Server for UNIX. It’s a pre-fork worker model ported from Ruby’s Unicorn project. The Gunicorn server is broadly compatible with various web frameworks, simply implemented, light on server resources, and fairly speedy.                                                                                                                                                   | pip install gunicorn                      |
+| Requests                         | HTTP client used to call the routing API and, for one-off data preparation, the Nominatim geocoder.                                                                                                                                                                                                                                                                                                                         | pip install requests                      |
 | Django Cors Headers              | A Django App that adds Cross-Origin Resource Sharing (CORS) headers to responses. This allows in-browser requests to your Django application from other origins.                                                                                                                                                                                                                                                            | pip install django-cors-headers           |
 | Flake8                           | Command-line utility for enforcing style consistency across Python projects                                                                                                                                                                                                                                                                                                                                                 | pip install flake8                        |
 | Flake8 DocStrings                | A simple module that adds an extension for the fantastic `pydocstyle` tool to flake8.                                                                                                                                                                                                                                                                                                                                       | pip install flake8-docstrings             |
