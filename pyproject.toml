@@ -1,0 +1,4 @@
+[tool.black]
+# Black only reads its config from pyproject.toml; keep in sync with flake8/isort in setup.cfg.
+line-length = 120
+target-version = ["py312"]
