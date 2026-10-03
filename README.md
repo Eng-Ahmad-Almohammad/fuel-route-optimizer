@@ -88,7 +88,9 @@ By default, the application will run using an SQLite database.
 
 ## Using the API
 
-`start` and `finish` are US places written as `City, ST`. Send them as JSON (POST) or as query parameters (GET):
+`start` and `finish` are US places written as `City, ST`. Send them as JSON (POST) or as query parameters (GET). A ready-made Postman collection with example trips and error cases is in
+`postman/fuel-route-optimizer.postman_collection.json` (Import it in Postman; `base_url` defaults to `http://localhost:8000`).
+With curl:
 
 ```bash
 curl -X POST http://localhost:8000/api/route/ \
