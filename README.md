@@ -71,7 +71,12 @@ Load the US places and the truck stop fuel prices from `data/` into the database
 python manage.py load_fuel_data
 ```
 
-### 7. Run the Server
+### 7. Add the Routing API Key
+
+Create a free account at [openrouteservice.org](https://openrouteservice.org/dev/#/signup) and set
+`OPENROUTESERVICE_API_KEY` in `.env`.
+
+### 8. Run the Server
 
 Start the development server to test the application locally:
 
@@ -80,6 +85,52 @@ python manage.py runserver
 ```
 
 By default, the application will run using an SQLite database.
+
+## Using the API
+
+`start` and `finish` are US places written as `City, ST`. Send them as JSON (POST) or as query parameters (GET):
+
+```bash
+curl -X POST http://localhost:8000/api/route/ \
+  -H "Content-Type: application/json" \
+  -d '{"start": "New York, NY", "finish": "Los Angeles, CA"}'
+
+curl "http://localhost:8000/api/route/?start=Chicago,%20IL&finish=Houston,%20TX"
+```
+
+The response has the total distance, gallons and fuel cost, the fuel stops in driving order (station, mile marker,
+price, gallons, cost), the planning assumptions, and the route as a GeoJSON `FeatureCollection` (paste it into
+[geojson.io](https://geojson.io) to view it). `map_url` opens the same trip on a map at `/map/`.
+
+| Status | When |
+| --- | --- |
+| 200 | Trip planned. `cached: true` means it was served without calling the routing API. |
+| 400 | `start`/`finish` missing, not in `City, ST` form, unknown, or the same place. |
+| 422 | No drivable route, or a stretch longer than 500 miles without a fuel station. |
+| 502 | The routing service failed (network error, invalid API key, rate limit). |
+
+### How a trip is planned
+
+1. Both places are looked up in the `Place` table (no geocoding API).
+2. **One** call to [OpenRouteService](https://openrouteservice.org) returns the road as a line of points plus its
+   length. Results are cached per start/finish pair for 6 hours.
+3. Stations within 10 miles of the road are found with a bounding-box query and a grid index, and each gets the mile
+   marker of the nearest route point.
+4. A dynamic program picks the stops that minimize fuel cost plus $5 per stop, so the plan doesn't stop for a gallon
+   to save a few cents (see `routing/optimizer.py`). The tank holds 500 miles of fuel at 10 mpg and starts empty; the
+   first stop is a station within 25 miles of the start.
+
+### Known limitations
+
+- **Places are town centers.** Start, finish and every fuel station are placed at the center of their town (US Census
+  Gazetteer), because the price list only gives highway-exit addresses. Stations can be a few miles from their true
+  spot; the 10-mile corridor allows for that, but the small detour to reach a station is not counted.
+- **Input is "City, ST" only.** Street addresses and places outside the US are rejected with a 400.
+- **Road snapping is limited to 350 m.** The free OpenRouteService API snaps start and finish to a road only within
+  350 m. A small town whose center is farther than that from any road returns a 422 ("Could not find routable
+  point"). All trips tried so far worked; a fix would be to store a road-snapped point for such towns offline.
+- **The cheapest plan counts each stop as $5.** This is a planning weight, not money spent: it avoids stopping for a
+  gallon to save a few cents. Set `STOP_COST_DOLLARS = 0` in `routing/planner.py` for the strictly cheapest fuel bill.
 
 ## Workflow
 

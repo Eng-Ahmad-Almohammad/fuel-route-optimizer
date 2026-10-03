@@ -21,10 +21,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
 
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
-env = environ.Env(DJANGO_ENV=(str, "development"))
+env = environ.Env(
+    DJANGO_ENV=(str, "development"),
+    OPENROUTESERVICE_API_KEY=(str, ""),
+    OPENROUTESERVICE_PROFILE=(str, "driving-car"),
+)
 
 
 ENV = env("DJANGO_ENV")
+
+# Routing API (https://openrouteservice.org), called once per uncached trip request.
+OPENROUTESERVICE_API_KEY = env("OPENROUTESERVICE_API_KEY")
+OPENROUTESERVICE_PROFILE = env("OPENROUTESERVICE_PROFILE")
+OPENROUTESERVICE_TIMEOUT_SECONDS = 20
+# Trip plans are cached per start/finish pair so repeated requests don't call the routing API again.
+TRIP_CACHE_SECONDS = 6 * 60 * 60
 
 base_settings = [
     "common.py",

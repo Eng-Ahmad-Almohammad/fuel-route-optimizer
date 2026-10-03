@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fuel Route Map</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <style>
+    :root { --sign: #1d6a46; --fuel: #a95c08; --fg: #1c2420; --muted: #59655e; --line: #d3dad5; --bg: #f4f6f3; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { display: grid; grid-template-columns: 360px 1fr; font: 15px/1.5 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+    aside { padding: 18px; overflow-y: auto; border-right: 1px solid var(--line); background: #fff; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    form { display: grid; gap: 8px; margin-bottom: 16px; }
+    label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; }
+    button { font: inherit; font-weight: 600; padding: 9px; border: 0; border-radius: 6px; background: var(--sign); color: #fff; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .totals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .totals div { background: var(--bg); border-radius: 6px; padding: 8px 10px; }
+    .totals b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .totals span { font-size: 12px; color: var(--muted); }
+    ol { padding-left: 20px; margin: 0; }
+    li { margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+    li small { color: var(--muted); display: block; }
+    .error { color: #b3261e; }
+    .meta { color: var(--muted); font-size: 13px; }
+    #map { height: 100%; }
+    @media (max-width: 760px) { body { grid-template-columns: 1fr; grid-template-rows: auto 60vh; } aside { border-right: 0; } }
+  </style>
+</head>
+<body>
+  <aside>
+    <h1>Fuel route</h1>
+    <form id="trip">
+      <label for="start">Start (City, ST)</label>
+      <input id="start" name="start" placeholder="New York, NY" required>
+      <label for="finish">Finish (City, ST)</label>
+      <input id="finish" name="finish" placeholder="Los Angeles, CA" required>
+      <button id="go" type="submit">Plan trip</button>
+    </form>
+    <div id="result"></div>
+  </aside>
+  <div id="map"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+    const map = L.map("map").setView([39.5, -98.35], 4);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      // OpenStreetMap's tile servers reject requests without a Referer; Django's same-origin policy strips it.
+      referrerPolicy: "strict-origin-when-cross-origin",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    let layer = null;
+
+    const form = document.getElementById("trip");
+    const result = document.getElementById("result");
+    const button = document.getElementById("go");
+    const money = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+    const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    function pin(color, label) {
+      return L.divIcon({
+        className: "",
+        html: `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:26px;height:26px;display:grid;place-items:center;font:600 12px system-ui;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+    }
+
+    function draw(plan) {
+      if (layer) layer.remove();
+      let stopNumber = 0;
+      layer = L.geoJSON(plan.route, {
+        style: { color: "#1d6a46", weight: 5, opacity: 0.85 },
+        pointToLayer: (feature, latlng) => {
+          const p = feature.properties;
+          if (p.kind === "fuel_stop") {
+            const stop = plan.fuel_stops[stopNumber++];
+            return L.marker(latlng, { icon: pin("#a95c08", stopNumber) }).bindPopup(
+              `<b>${escape(stop.name)}</b><br>${escape(stop.city)}, ${stop.state} · mile ${stop.mile_marker}<br>` +
+              `${stop.gallons} gal × $${stop.price_per_gallon.toFixed(3)} = <b>${money(stop.cost)}</b>`
+            );
+          }
+          return L.marker(latlng, { icon: pin("#1c2420", p.kind === "start" ? "A" : "B") }).bindPopup(escape(p.name));
+        },
+      }).addTo(map);
+      map.fitBounds(layer.getBounds(), { padding: [30, 30] });
+
+      result.innerHTML = `
+        <div class="totals">
+          <div><b>${money(plan.total_fuel_cost)}</b><span>total fuel cost</span></div>
+          <div><b>${plan.distance_miles.toLocaleString()} mi</b><span>${plan.total_gallons} gal at ${plan.assumptions.miles_per_gallon} mpg</span></div>
+        </div>
+        <p class="meta">${plan.fuel_stops.length} fuel stops, chosen from ${plan.stations_considered} stations along the route${plan.cached ? " · cached" : ""}</p>
+        <ol>${plan.fuel_stops.map((s) => `
+          <li><b>${escape(s.name)}</b> — ${money(s.cost)}
+            <small>${escape(s.city)}, ${s.state} · mile ${s.mile_marker} · ${s.gallons} gal at $${s.price_per_gallon.toFixed(3)}</small></li>`).join("")}
+        </ol>`;
+    }
+
+    async function plan(start, finish) {
+      button.disabled = true;
+      result.innerHTML = '<p class="meta">Planning…</p>';
+      const params = new URLSearchParams({ start, finish });
+      history.replaceState(null, "", `?${params}`);
+      try {
+        const response = await fetch(`{% url 'trip-plan' %}?${params}`);
+        const body = await response.json();
+        if (!response.ok) {
+          const messages = body.detail ? [body.detail] : Object.entries(body).map(([field, errors]) => `${field}: ${[].concat(errors).join(" ")}`);
+          result.innerHTML = messages.map((m) => `<p class="error">${escape(m)}</p>`).join("");
+          return;
+        }
+        draw(body);
+      } catch (error) {
+        result.innerHTML = `<p class="error">Could not reach the API: ${escape(error.message)}</p>`;
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      plan(form.start.value, form.finish.value);
+    });
+
+    const initial = new URLSearchParams(location.search);
+    if (initial.get("start") && initial.get("finish")) {
+      form.start.value = initial.get("start");
+      form.finish.value = initial.get("finish");
+      plan(form.start.value, form.finish.value);
+    }
+  </script>
+</body>
+</html>

@@ -1,16 +1,21 @@
-"""Testing database configurations.
+"""Settings for the test suite.
 
-At this module you will add the test database config to septate them
-from other configurations.
+Loads the regular settings with the `testing` environment, then swaps in an in-memory database and
+placeholder secrets so the tests run without a `.env` file and never reach the real routing API.
 """
 
-from core.settings.common import *  # noqa: F403 F401 WPS347
-from core.settings.components.rest_framework import *  # noqa: F403 F401 WPS347
+import os
 
-DEBUG = True
+os.environ.setdefault("DJANGO_ENV", "testing")
+
+from core.settings import *  # noqa: E402, F401, F403
+
+SECRET_KEY = "test-secret-key"  # noqa: S105
+OPENROUTESERVICE_API_KEY = "test-openrouteservice-key"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",  # Use an in-memory database for testing
+        "NAME": ":memory:",
     },
 }
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
